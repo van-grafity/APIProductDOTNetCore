@@ -1,9 +1,16 @@
+using Microsoft.EntityFrameworkCore;
+using APIProductDOTNetCore.Data;
+using APIProductDOTNetCore.Models;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// Add DbContext
+builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 var app = builder.Build();
 
@@ -35,6 +42,50 @@ app.MapGet("/weatherforecast", () =>
 })
 .WithName("GetWeatherForecast")
 .WithOpenApi();
+
+app.MapGet("/products", async (AppDbContext db) =>
+    await db.Products.ToListAsync())
+    .WithName("GetProducts");
+
+app.MapGet("/products/{id}", async (int id, AppDbContext db) =>
+    await db.Products.FindAsync(id) is Product product ? Results.Ok(product) : Results.NotFound())
+    .WithName("GetProductById");
+
+app.MapPost("/products", async (Product product, AppDbContext db) =>
+{
+    db.Products.Add(product);
+    await db.SaveChangesAsync();
+    return Results.Created($"/products/{product.Id}", product);
+})
+.WithName("CreateProduct");
+
+app.MapPut("/products/{id}", async (int id, Product inputProduct, AppDbContext db) =>
+{
+    var product = await db.Products.FindAsync(id);
+
+    if (product is null) return Results.NotFound();
+
+    product.Name = inputProduct.Name;
+    product.Price = inputProduct.Price;
+
+    await db.SaveChangesAsync();
+
+    return Results.NoContent();
+})
+.WithName("UpdateProduct");
+
+app.MapDelete("/products/{id}", async (int id, AppDbContext db) =>
+{
+    var product = await db.Products.FindAsync(id);
+
+    if (product is null) return Results.NotFound();
+
+    db.Products.Remove(product);
+    await db.SaveChangesAsync();
+
+    return Results.NoContent();
+})
+.WithName("DeleteProduct");
 
 app.Run();
 
